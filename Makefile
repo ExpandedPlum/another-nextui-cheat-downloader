@@ -5,13 +5,37 @@ PAK_FOLDER := $(shell echo $(PAK_TYPE) | cut -c1)$(shell echo $(PAK_TYPE) | tr '
 PUSH_SDCARD_PATH ?= /mnt/SDCARD
 PUSH_PLATFORM ?= tg5040
 
+# Optional local libretro-database checkout for `make index`; cloned when unset
+LIBRETRO_DATABASE ?=
+
+SHELL_SOURCES := launch.sh lib/common.sh scripts/build-index.sh tests/run.sh tests/stubs/*
+
+.PHONY: clean build index certs lint test release bump-version push
+
 clean:
-	true
+	rm -rf dist index certs
 
 build:
 	true
 
-release: build
+# Snapshot of the cheat index bundled in the pak for offline use
+index:
+	scripts/build-index.sh index $(LIBRETRO_DATABASE)
+
+# CA certificates so the device can verify HTTPS without relying on firmware
+certs:
+	mkdir -p certs
+	curl -fsSL -o certs/cacert.pem.tmp https://curl.se/ca/cacert.pem
+	mv certs/cacert.pem.tmp certs/cacert.pem
+
+lint:
+	shellcheck -x $(SHELL_SOURCES)
+
+test:
+	sh tests/run.sh
+	BUSYBOX=1 busybox sh tests/run.sh
+
+release: build index certs
 	mkdir -p dist
 	git archive --format=zip --output "dist/$(PAK_NAME).pak.zip" HEAD
 	while IFS= read -r file; do zip -r "dist/$(PAK_NAME).pak.zip" "$$file"; done < .gitarchiveinclude

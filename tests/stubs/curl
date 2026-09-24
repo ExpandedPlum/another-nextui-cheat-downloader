@@ -1,0 +1,24 @@
+#!/bin/sh
+# Test stand-in for curl. Serves https://stub.test/<path> from $STUB_WEB/<path>
+# (paths are used still URL-encoded). $STUB_CURL_MODE:
+#   offline  fail as if there is no network (exit 6)
+#   notls    fail certificate verification (exit 60) unless -k is given
+out="" url="" insecure=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift ;;
+    -k) insecure=1 ;;
+    --cacert | --connect-timeout | --max-time) shift ;;
+    -*) ;;
+    *) url="$1" ;;
+  esac
+  shift
+done
+echo "curl: $url${insecure:+ (insecure)}" >> "$STUB_LOG"
+case "${STUB_CURL_MODE:-}" in
+  offline) exit 6 ;;
+  notls) [ -z "$insecure" ] && exit 60 ;;
+esac
+path="$STUB_WEB/${url#https://stub.test/}"
+[ -f "$path" ] || exit 22
+cp "$path" "$out"

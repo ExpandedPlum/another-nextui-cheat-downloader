@@ -1,0 +1,61 @@
+---
+name: "cheat-index"
+
+# Publishes the cheat index (see scripts/build-index.sh) to the cheat-index
+# branch, where the pak downloads it from raw.githubusercontent.com. Each
+# index format lives in its own v<N>/ folder so paks that expect an older
+# format keep getting updates for it until the format is retired.
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cheat-index
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Build index
+        run: scripts/build-index.sh build/index
+
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          format=$(jq -r .format build/index/manifest.json)
+          mkdir publish
+          if git fetch --depth 1 origin cheat-index; then
+            git archive FETCH_HEAD | tar -x -C publish
+          fi
+
+          old="publish/v$format/manifest.json"
+          new="build/index/manifest.json"
+          if [ -f "$old" ] \
+            && [ "$(jq -r '.commit + .builder' "$old")" = "$(jq -r '.commit + .builder' "$new")" ]; then
+            echo "Index unchanged since the last publish"
+            exit 0
+          fi
+
+          rm -rf "publish/v$format"
+          cp -R build/index "publish/v$format"
+          cd publish
+          git init -q -b cheat-index
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Cheat index for libretro-database $(jq -r .commit "../$new")"
+          # One commit only: the branch holds generated data, not history
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" cheat-index
