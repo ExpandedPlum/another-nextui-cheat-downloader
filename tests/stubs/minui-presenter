@@ -1,0 +1,19 @@
+#!/bin/sh
+# Test stand-in for minui-presenter. Logs the message; confirmation dialogs
+# exit with $STUB_CONFIRM (default 0, i.e. confirmed). Status messages
+# (--timeout -1) wait to be killed like the real thing.
+message="" timeout="" is_confirm=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --message) message="$2"; shift ;;
+    --timeout) timeout="$2"; shift ;;
+    --confirm-show) is_confirm=1 ;;
+  esac
+  shift
+done
+printf 'presenter: %s\n' "$(printf '%s' "$message" | tr '\n' '|')" >> "$STUB_LOG"
+if [ "$timeout" = "-1" ]; then
+  exec sleep 1000
+fi
+[ -n "$is_confirm" ] && exit "${STUB_CONFIRM:-0}"
+exit 0

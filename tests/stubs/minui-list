@@ -1,0 +1,28 @@
+#!/bin/sh
+# Test stand-in for minui-list. Replays one scripted response per call from
+# $STUB_LIST_SCRIPT ("<exit code> [selected index]" per line) and logs the
+# call to $STUB_LOG. Presses Back once the script runs out.
+file="" title="" location=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --file) file="$2"; shift ;;
+    --title) title="$2"; shift ;;
+    --write-location) location="$2"; shift ;;
+  esac
+  shift
+done
+
+counter="$STUB_LIST_SCRIPT.pos"
+pos=$(cat "$counter" 2>/dev/null || echo 0)
+pos=$((pos + 1))
+echo "$pos" > "$counter"
+line=$(sed -n "${pos}p" "$STUB_LIST_SCRIPT" 2>/dev/null)
+[ -z "$line" ] && line="2"
+
+# shellcheck disable=SC2086 # split "<code> <index>"
+set -- $line
+rc="$1" sel="${2:-0}"
+echo "list: $title ($(jq '.items | length' "$file") items) -> $rc $sel" >> "$STUB_LOG"
+cp "$file" "$STUB_DIR/list_$pos.json"
+[ -n "$location" ] && printf '{"selected": %s}\n' "$sel" > "$location"
+exit "$rc"

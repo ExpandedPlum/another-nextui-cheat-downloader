@@ -3,3 +3,8 @@
 
 # macOS junk
 .DS_Store
+
+# Build output
+dist/
+index/
+certs/
